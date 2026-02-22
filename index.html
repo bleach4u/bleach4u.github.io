@@ -15,18 +15,8 @@
   --border:#2a3140;
 }
 
-body{
-  margin:0;
-  background:var(--bg);
-  color:var(--text);
-  font-family:Segoe UI, system-ui, sans-serif;
-}
-
-.container{
-  max-width:1200px;
-  margin:auto;
-  padding:20px;
-}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Segoe UI, sans-serif}
+.container{max-width:1200px;margin:auto;padding:20px}
 
 .card{
   background:var(--panel);
@@ -44,7 +34,6 @@ textarea{
   padding:12px;
   border-radius:10px;
   font-family:Consolas, monospace;
-  font-size:15px;
 }
 
 .controls{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
@@ -61,10 +50,6 @@ button{
 
 button.secondary{background:#2c3444}
 
-.mode-btn{
-  padding:8px 14px;
-}
-
 .player{
   background:var(--panel2);
   padding:6px 10px;
@@ -74,9 +59,9 @@ button.secondary{background:#2c3444}
   cursor:pointer;
 }
 
-.team{
-  margin-bottom:10px;
-}
+.selected{background:#ffb84d;color:black}
+
+.team{margin-bottom:10px}
 </style>
 </head>
 
@@ -92,12 +77,18 @@ button.secondary{background:#2c3444}
 <label>Team size:</label>
 <input id="teamSize" type="number" value="5" min="1" style="width:80px">
 
-<button class="mode-btn" onclick="setMode('random')">🎲 Random</button>
-<button class="mode-btn" onclick="startDraft()">👑 Captains</button>
+<button onclick="generateRandom()">🎲 Random</button>
+<button onclick="prepareCaptainSelect()">👑 Draft (Manual Captains)</button>
 
 <button onclick="copyOutput()">Copy Output</button>
 <button class="secondary" onclick="copyShareLink()">Share</button>
 </div>
+</div>
+
+<div class="card" id="captainArea" style="display:none">
+<h3>Select Captains (click players)</h3>
+<div id="captainPool"></div>
+<button onclick="startDraft()">Start Draft</button>
 </div>
 
 <div class="card" id="draftArea" style="display:none">
@@ -115,7 +106,7 @@ button.secondary{background:#2c3444}
 </div>
 
 <script>
-let players=[], teams=[], captains=[], order=[], turn=0, history=[];
+let allPlayers=[], captains=[], players=[], teams=[], order=[], turn=0, history=[];
 
 function extractPlayers(text){
   const lines=text.split("\n");
@@ -135,42 +126,61 @@ function shuffle(a){
   }
 }
 
-function setMode(mode){
-  if(mode==="random") generateRandom();
-}
+/* RANDOM MODE */
 
 function generateRandom(){
-  players=extractPlayers(input.value);
+  const p=extractPlayers(input.value);
   const size=parseInt(teamSize.value)||5;
 
-  shuffle(players);
+  shuffle(p);
 
   let out="", t=1;
-  for(let i=0;i<players.length;i+=size){
+  for(let i=0;i<p.length;i+=size){
     out+=`Team ${t++}:\n`;
-    players.slice(i,i+size).forEach(p=>out+="  "+p+"\n");
+    p.slice(i,i+size).forEach(x=>out+="  "+x+"\n");
     out+="\n";
   }
 
   output.value=out;
 }
 
-/* ===== DRAFT MODE ===== */
+/* CAPTAIN SELECTION */
+
+function prepareCaptainSelect(){
+  allPlayers=extractPlayers(input.value);
+  captains=[];
+  captainPool.innerHTML="";
+  captainArea.style.display="block";
+
+  allPlayers.forEach(p=>{
+    const el=document.createElement("div");
+    el.className="player";
+    el.textContent=p;
+    el.onclick=()=>{
+      if(captains.includes(p)){
+        captains=captains.filter(x=>x!==p);
+        el.classList.remove("selected");
+      }else{
+        captains.push(p);
+        el.classList.add("selected");
+      }
+    };
+    captainPool.appendChild(el);
+  });
+}
+
+/* START DRAFT */
 
 function startDraft(){
-  players=extractPlayers(input.value);
   const size=parseInt(teamSize.value)||5;
 
-  if(players.length===0) return;
+  if(captains.length===0) return;
 
-  const teamCount=Math.ceil(players.length/size);
-
-  captains=players.slice(0,teamCount);
   teams=captains.map(c=>[c]);
+  players=allPlayers.filter(p=>!captains.includes(p));
 
-  players=players.slice(teamCount);
+  const teamCount=captains.length;
 
-  // snake order
   order=[];
   for(let r=0;r<size-1;r++){
     const arr=[...Array(teamCount).keys()];
@@ -180,6 +190,7 @@ function startDraft(){
 
   turn=0;
   history=[];
+  captainArea.style.display="none";
   draftArea.style.display="block";
   renderDraft();
 }
@@ -190,10 +201,9 @@ function renderDraft(){
     return;
   }
 
-  draftInfo.textContent=
-    "Captain picking: "+captains[order[turn]];
-
+  draftInfo.textContent="Captain picking: "+captains[order[turn]];
   available.innerHTML="";
+
   players.forEach(p=>{
     const el=document.createElement("div");
     el.className="player";
@@ -224,7 +234,7 @@ function undoPick(){
 function finishDraft(){
   let out="";
   teams.forEach((t,i)=>{
-    out+=`Team ${i+1}:\n`;
+    out+=`Team ${i+1} (${captains[i]}):\n`;
     t.forEach(p=>out+="  "+p+"\n");
     out+="\n";
   });
@@ -232,7 +242,7 @@ function finishDraft(){
   draftArea.style.display="none";
 }
 
-/* ===== UTIL ===== */
+/* UTIL */
 
 function copyOutput(){
   output.select();
