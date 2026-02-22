@@ -15,8 +15,18 @@
   --border:#2a3140;
 }
 
-body{margin:0;background:var(--bg);color:var(--text);font-family:Segoe UI, sans-serif}
-.container{max-width:1200px;margin:auto;padding:20px}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Segoe UI, system-ui, sans-serif;
+}
+
+.container{
+  max-width:1200px;
+  margin:auto;
+  padding:20px;
+}
 
 .card{
   background:var(--panel);
@@ -33,10 +43,20 @@ textarea{
   color:var(--text);
   padding:12px;
   border-radius:10px;
-  font-family:Consolas, monospace;
+  font-family:"Consolas","Courier New",monospace;
+  font-size:14px;
+  resize:vertical;
+  box-sizing:border-box;
+  overflow:auto;
 }
 
-.controls{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
+.controls{
+  margin-top:10px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+}
 
 button{
   background:var(--accent);
@@ -46,9 +66,27 @@ button{
   color:white;
   font-weight:600;
   cursor:pointer;
+  transition:.15s;
 }
 
 button.secondary{background:#2c3444}
+
+button:hover{filter:brightness(1.1);transform:translateY(-1px)}
+
+input[type=number]{
+  width:80px;
+  background:#252526;
+  color:#fff;
+  border:1px solid #2a3140;
+  padding:6px 8px;
+  border-radius:6px;
+}
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{
+  -webkit-appearance:none;
+  margin:0;
+}
 
 .player{
   background:var(--panel2);
@@ -59,9 +97,23 @@ button.secondary{background:#2c3444}
   cursor:pointer;
 }
 
-.selected{background:#ffb84d;color:black}
+.player.selected{background:#ffb84d;color:black}
 
 .team{margin-bottom:10px}
+
+/* Scrollbar */
+textarea::-webkit-scrollbar{
+  width:12px;
+}
+textarea::-webkit-scrollbar-track{
+  background:#252526;
+  border-radius:6px;
+}
+textarea::-webkit-scrollbar-thumb{
+  background:#4da3ff;
+  border-radius:6px;
+  border:3px solid #252526;
+}
 </style>
 </head>
 
@@ -70,12 +122,13 @@ button.secondary{background:#2c3444}
 
 <h1>Draft Tournament Tool</h1>
 
+<!-- INPUT CARD -->
 <div class="card">
 <textarea id="input" rows="10" placeholder="Paste check-in list..."></textarea>
 
 <div class="controls">
 <label>Team size:</label>
-<input id="teamSize" type="number" value="5" min="1" style="width:80px">
+<input id="teamSize" type="number" value="5" min="1">
 
 <button onclick="generateRandom()">🎲 Random</button>
 <button onclick="prepareCaptainSelect()">👑 Draft (Manual Captains)</button>
@@ -85,19 +138,26 @@ button.secondary{background:#2c3444}
 </div>
 </div>
 
+<!-- CAPTAIN SELECTION -->
 <div class="card" id="captainArea" style="display:none">
 <h3>Select Captains (click players)</h3>
 <div id="captainPool"></div>
+<div class="controls">
 <button onclick="startDraft()">Start Draft</button>
 </div>
-
-<div class="card" id="draftArea" style="display:none">
-<h3>Draft Mode</h3>
-<div id="draftInfo"></div>
-<div id="available"></div>
-<button onclick="undoPick()">Undo Pick</button>
 </div>
 
+<!-- DRAFT PICKING -->
+<div class="card" id="draftArea" style="display:none">
+<h3>Draft Mode</h3>
+<div id="draftInfo" style="margin-bottom:10px"></div>
+<div id="available"></div>
+<div class="controls">
+<button onclick="undoPick()">Undo Pick</button>
+</div>
+</div>
+
+<!-- OUTPUT -->
 <div class="card">
 <h3>Output</h3>
 <textarea id="output" rows="12" readonly></textarea>
@@ -106,8 +166,9 @@ button.secondary{background:#2c3444}
 </div>
 
 <script>
-let allPlayers=[], captains=[], players=[], teams=[], order=[], turn=0, history=[];
+let allPlayers=[], captains=[], players=[], teams=[], order=[], turn=0, history=[], currentMode="random";
 
+/* ===== UTILS ===== */
 function extractPlayers(text){
   const lines=text.split("\n");
   const arr=[];
@@ -126,31 +187,29 @@ function shuffle(a){
   }
 }
 
-/* RANDOM MODE */
-
+/* ===== RANDOM MODE ===== */
 function generateRandom(){
+  currentMode="random";
   const p=extractPlayers(input.value);
   const size=parseInt(teamSize.value)||5;
-
   shuffle(p);
-
   let out="", t=1;
   for(let i=0;i<p.length;i+=size){
     out+=`Team ${t++}:\n`;
     p.slice(i,i+size).forEach(x=>out+="  "+x+"\n");
     out+="\n";
   }
-
   output.value=out;
 }
 
-/* CAPTAIN SELECTION */
-
+/* ===== MANUAL CAPTAIN SELECTION ===== */
 function prepareCaptainSelect(){
+  currentMode="draft";
   allPlayers=extractPlayers(input.value);
   captains=[];
   captainPool.innerHTML="";
   captainArea.style.display="block";
+  draftArea.style.display="none";
 
   allPlayers.forEach(p=>{
     const el=document.createElement("div");
@@ -169,27 +228,19 @@ function prepareCaptainSelect(){
   });
 }
 
-/* START DRAFT */
-
 function startDraft(){
   const size=parseInt(teamSize.value)||5;
-
-  if(captains.length===0) return;
-
+  if(captains.length===0) return alert("Select at least one captain!");
   teams=captains.map(c=>[c]);
   players=allPlayers.filter(p=>!captains.includes(p));
-
   const teamCount=captains.length;
-
   order=[];
   for(let r=0;r<size-1;r++){
     const arr=[...Array(teamCount).keys()];
     if(r%2===1) arr.reverse();
     order.push(...arr);
   }
-
-  turn=0;
-  history=[];
+  turn=0; history=[];
   captainArea.style.display="none";
   draftArea.style.display="block";
   renderDraft();
@@ -200,10 +251,8 @@ function renderDraft(){
     finishDraft();
     return;
   }
-
   draftInfo.textContent="Captain picking: "+captains[order[turn]];
   available.innerHTML="";
-
   players.forEach(p=>{
     const el=document.createElement("div");
     el.className="player";
@@ -242,35 +291,45 @@ function finishDraft(){
   draftArea.style.display="none";
 }
 
-/* UTIL */
-
+/* ===== COPY & SHARE ===== */
 function copyOutput(){
   output.select();
   document.execCommand("copy");
 }
 
 function copyShareLink(){
-  const data=btoa(unescape(encodeURIComponent(input.value)));
-  const url=location.origin+location.pathname+
-    `?data=${data}&size=${teamSize.value}`;
+  const shareData = {
+    mode: currentMode,
+    input: input.value,
+    size: teamSize.value,
+    captains: captains
+  };
+  const url=location.origin+location.pathname+"?data="+btoa(JSON.stringify(shareData));
   navigator.clipboard.writeText(url);
   alert("Share link copied!");
 }
 
+/* ===== LOAD FROM SHARE LINK ===== */
 function loadFromURL(){
   const p=new URLSearchParams(location.search);
   if(p.has("data")){
-    input.value=decodeURIComponent(
-      escape(atob(p.get("data")))
-    );
-  }
-  if(p.has("size")){
-    teamSize.value=p.get("size");
+    const decoded=JSON.parse(atob(p.get("data")));
+    input.value=decoded.input;
+    teamSize.value=decoded.size;
+    if(decoded.mode==="draft" && decoded.captains && decoded.captains.length>0){
+      captains=decoded.captains;
+      prepareCaptainSelect();
+      // mark captains visually
+      Array.from(captainPool.children).forEach(el=>{
+        if(captains.includes(el.textContent)) el.classList.add("selected");
+      });
+    } else {
+      generateRandom();
+    }
   }
 }
 
 loadFromURL();
 </script>
-
 </body>
 </html>
