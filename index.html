@@ -1,7 +1,266 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draft Tournament Tool</title>
 
-<html>
-  <body>
-    <h1>balls</h1>
-  </body>
+<style>
+:root{
+  --bg:#0f1115;
+  --panel:#181c23;
+  --panel2:#1f2430;
+  --accent:#4da3ff;
+  --text:#e6e9ef;
+  --border:#2a3140;
+}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Segoe UI, system-ui, sans-serif;
+}
+
+.container{
+  max-width:1200px;
+  margin:auto;
+  padding:20px;
+}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:18px;
+  margin-bottom:18px;
+}
+
+textarea{
+  width:100%;
+  background:var(--panel2);
+  border:1px solid var(--border);
+  color:var(--text);
+  padding:12px;
+  border-radius:10px;
+  font-family:Consolas, monospace;
+  font-size:15px;
+}
+
+.controls{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
+
+button{
+  background:var(--accent);
+  border:none;
+  padding:10px 16px;
+  border-radius:10px;
+  color:white;
+  font-weight:600;
+  cursor:pointer;
+}
+
+button.secondary{background:#2c3444}
+
+.mode-btn{
+  padding:8px 14px;
+}
+
+.player{
+  background:var(--panel2);
+  padding:6px 10px;
+  border-radius:8px;
+  margin:4px;
+  display:inline-block;
+  cursor:pointer;
+}
+
+.team{
+  margin-bottom:10px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>Draft Tournament Tool</h1>
+
+<div class="card">
+<textarea id="input" rows="10" placeholder="Paste check-in list..."></textarea>
+
+<div class="controls">
+<label>Team size:</label>
+<input id="teamSize" type="number" value="5" min="1" style="width:80px">
+
+<button class="mode-btn" onclick="setMode('random')">🎲 Random</button>
+<button class="mode-btn" onclick="startDraft()">👑 Captains</button>
+
+<button onclick="copyOutput()">Copy Output</button>
+<button class="secondary" onclick="copyShareLink()">Share</button>
+</div>
+</div>
+
+<div class="card" id="draftArea" style="display:none">
+<h3>Draft Mode</h3>
+<div id="draftInfo"></div>
+<div id="available"></div>
+<button onclick="undoPick()">Undo Pick</button>
+</div>
+
+<div class="card">
+<h3>Output</h3>
+<textarea id="output" rows="12" readonly></textarea>
+</div>
+
+</div>
+
+<script>
+let players=[], teams=[], captains=[], order=[], turn=0, history=[];
+
+function extractPlayers(text){
+  const lines=text.split("\n");
+  const arr=[];
+  const r=/\d+\s+(.+?)\s+Checked In/i;
+  for(const l of lines){
+    const m=l.match(r);
+    if(m) arr.push(m[1]);
+  }
+  return arr;
+}
+
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+}
+
+function setMode(mode){
+  if(mode==="random") generateRandom();
+}
+
+function generateRandom(){
+  players=extractPlayers(input.value);
+  const size=parseInt(teamSize.value)||5;
+
+  shuffle(players);
+
+  let out="", t=1;
+  for(let i=0;i<players.length;i+=size){
+    out+=`Team ${t++}:\n`;
+    players.slice(i,i+size).forEach(p=>out+="  "+p+"\n");
+    out+="\n";
+  }
+
+  output.value=out;
+}
+
+/* ===== DRAFT MODE ===== */
+
+function startDraft(){
+  players=extractPlayers(input.value);
+  const size=parseInt(teamSize.value)||5;
+
+  if(players.length===0) return;
+
+  const teamCount=Math.ceil(players.length/size);
+
+  captains=players.slice(0,teamCount);
+  teams=captains.map(c=>[c]);
+
+  players=players.slice(teamCount);
+
+  // snake order
+  order=[];
+  for(let r=0;r<size-1;r++){
+    const arr=[...Array(teamCount).keys()];
+    if(r%2===1) arr.reverse();
+    order.push(...arr);
+  }
+
+  turn=0;
+  history=[];
+  draftArea.style.display="block";
+  renderDraft();
+}
+
+function renderDraft(){
+  if(turn>=order.length){
+    finishDraft();
+    return;
+  }
+
+  draftInfo.textContent=
+    "Captain picking: "+captains[order[turn]];
+
+  available.innerHTML="";
+  players.forEach(p=>{
+    const el=document.createElement("div");
+    el.className="player";
+    el.textContent=p;
+    el.onclick=()=>pick(p);
+    available.appendChild(el);
+  });
+}
+
+function pick(p){
+  const teamIndex=order[turn];
+  teams[teamIndex].push(p);
+  history.push({p,teamIndex});
+  players=players.filter(x=>x!==p);
+  turn++;
+  renderDraft();
+}
+
+function undoPick(){
+  if(history.length===0) return;
+  const last=history.pop();
+  teams[last.teamIndex].pop();
+  players.push(last.p);
+  turn--;
+  renderDraft();
+}
+
+function finishDraft(){
+  let out="";
+  teams.forEach((t,i)=>{
+    out+=`Team ${i+1}:\n`;
+    t.forEach(p=>out+="  "+p+"\n");
+    out+="\n";
+  });
+  output.value=out;
+  draftArea.style.display="none";
+}
+
+/* ===== UTIL ===== */
+
+function copyOutput(){
+  output.select();
+  document.execCommand("copy");
+}
+
+function copyShareLink(){
+  const data=btoa(unescape(encodeURIComponent(input.value)));
+  const url=location.origin+location.pathname+
+    `?data=${data}&size=${teamSize.value}`;
+  navigator.clipboard.writeText(url);
+  alert("Share link copied!");
+}
+
+function loadFromURL(){
+  const p=new URLSearchParams(location.search);
+  if(p.has("data")){
+    input.value=decodeURIComponent(
+      escape(atob(p.get("data")))
+    );
+  }
+  if(p.has("size")){
+    teamSize.value=p.get("size");
+  }
+}
+
+loadFromURL();
+</script>
+
+</body>
 </html>
