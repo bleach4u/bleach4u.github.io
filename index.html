@@ -22,11 +22,7 @@ body{
   font-family:Segoe UI, system-ui, sans-serif;
 }
 
-.container{
-  max-width:1200px;
-  margin:auto;
-  padding:20px;
-}
+.container{max-width:1200px;margin:auto;padding:20px;}
 
 .card{
   background:var(--panel);
@@ -66,12 +62,9 @@ button{
   color:white;
   font-weight:600;
   cursor:pointer;
-  transition:.15s;
 }
 
 button.secondary{background:#2c3444}
-
-button:hover{filter:brightness(1.1);transform:translateY(-1px)}
 
 input[type=number]{
   width:80px;
@@ -80,12 +73,6 @@ input[type=number]{
   border:1px solid #2a3140;
   padding:6px 8px;
   border-radius:6px;
-}
-
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button{
-  -webkit-appearance:none;
-  margin:0;
 }
 
 .player{
@@ -99,16 +86,8 @@ input[type=number]::-webkit-outer-spin-button{
 
 .player.selected{background:#ffb84d;color:black}
 
-.team{margin-bottom:10px}
-
-/* Scrollbar */
-textarea::-webkit-scrollbar{
-  width:12px;
-}
-textarea::-webkit-scrollbar-track{
-  background:#252526;
-  border-radius:6px;
-}
+textarea::-webkit-scrollbar{width:12px;}
+textarea::-webkit-scrollbar-track{background:#252526;}
 textarea::-webkit-scrollbar-thumb{
   background:#4da3ff;
   border-radius:6px;
@@ -122,8 +101,8 @@ textarea::-webkit-scrollbar-thumb{
 
 <h1>Draft Tournament Tool</h1>
 
-<!-- INPUT CARD -->
-<div class="card">
+<!-- INPUT -->
+<div class="card" id="inputCard">
 <textarea id="input" rows="10" placeholder="Paste check-in list..."></textarea>
 
 <div class="controls">
@@ -134,23 +113,23 @@ textarea::-webkit-scrollbar-thumb{
 <button onclick="prepareCaptainSelect()">👑 Draft (Manual Captains)</button>
 
 <button onclick="copyOutput()">Copy Output</button>
-<button class="secondary" onclick="copyShareLink()">Share</button>
+<button class="secondary" onclick="copyShareLink()">Share Results</button>
 </div>
 </div>
 
-<!-- CAPTAIN SELECTION -->
+<!-- CAPTAIN SELECT -->
 <div class="card" id="captainArea" style="display:none">
-<h3>Select Captains (click players)</h3>
+<h3>Select Captains</h3>
 <div id="captainPool"></div>
 <div class="controls">
 <button onclick="startDraft()">Start Draft</button>
 </div>
 </div>
 
-<!-- DRAFT PICKING -->
+<!-- DRAFT -->
 <div class="card" id="draftArea" style="display:none">
 <h3>Draft Mode</h3>
-<div id="draftInfo" style="margin-bottom:10px"></div>
+<div id="draftInfo"></div>
 <div id="available"></div>
 <div class="controls">
 <button onclick="undoPick()">Undo Pick</button>
@@ -160,15 +139,15 @@ textarea::-webkit-scrollbar-thumb{
 <!-- OUTPUT -->
 <div class="card">
 <h3>Output</h3>
-<textarea id="output" rows="12" readonly></textarea>
+<textarea id="output" rows="14" readonly></textarea>
 </div>
 
 </div>
 
 <script>
-let allPlayers=[], captains=[], players=[], teams=[], order=[], turn=0, history=[], currentMode="random";
+let allPlayers=[], captains=[], players=[], teams=[], order=[], turn=0, history=[];
 
-/* ===== UTILS ===== */
+/* ===== UTIL ===== */
 function extractPlayers(text){
   const lines=text.split("\n");
   const arr=[];
@@ -187,12 +166,12 @@ function shuffle(a){
   }
 }
 
-/* ===== RANDOM MODE ===== */
+/* ===== RANDOM ===== */
 function generateRandom(){
-  currentMode="random";
   const p=extractPlayers(input.value);
   const size=parseInt(teamSize.value)||5;
   shuffle(p);
+
   let out="", t=1;
   for(let i=0;i<p.length;i+=size){
     out+=`Team ${t++}:\n`;
@@ -202,9 +181,8 @@ function generateRandom(){
   output.value=out;
 }
 
-/* ===== MANUAL CAPTAIN SELECTION ===== */
+/* ===== CAPTAIN SELECT ===== */
 function prepareCaptainSelect(){
-  currentMode="draft";
   allPlayers=extractPlayers(input.value);
   captains=[];
   captainPool.innerHTML="";
@@ -228,11 +206,14 @@ function prepareCaptainSelect(){
   });
 }
 
+/* ===== START DRAFT ===== */
 function startDraft(){
   const size=parseInt(teamSize.value)||5;
-  if(captains.length===0) return alert("Select at least one captain!");
+  if(captains.length===0) return alert("Select captains");
+
   teams=captains.map(c=>[c]);
   players=allPlayers.filter(p=>!captains.includes(p));
+
   const teamCount=captains.length;
   order=[];
   for(let r=0;r<size-1;r++){
@@ -240,6 +221,7 @@ function startDraft(){
     if(r%2===1) arr.reverse();
     order.push(...arr);
   }
+
   turn=0; history=[];
   captainArea.style.display="none";
   draftArea.style.display="block";
@@ -247,12 +229,11 @@ function startDraft(){
 }
 
 function renderDraft(){
-  if(turn>=order.length){
-    finishDraft();
-    return;
-  }
+  if(turn>=order.length){ finishDraft(); return; }
+
   draftInfo.textContent="Captain picking: "+captains[order[turn]];
   available.innerHTML="";
+
   players.forEach(p=>{
     const el=document.createElement("div");
     el.className="player";
@@ -272,7 +253,7 @@ function pick(p){
 }
 
 function undoPick(){
-  if(history.length===0) return;
+  if(!history.length) return;
   const last=history.pop();
   teams[last.teamIndex].pop();
   players.push(last.p);
@@ -291,41 +272,45 @@ function finishDraft(){
   draftArea.style.display="none";
 }
 
-/* ===== COPY & SHARE ===== */
+/* ===== COPY ===== */
 function copyOutput(){
   output.select();
   document.execCommand("copy");
 }
 
+/* ===== SHARE RESULTS ONLY ===== */
 function copyShareLink(){
+  if(!output.value.trim()){
+    alert("Generate teams first!");
+    return;
+  }
+
   const shareData = {
-    mode: currentMode,
-    input: input.value,
-    size: teamSize.value,
-    captains: captains
+    output: output.value,
+    size: teamSize.value
   };
-  const url=location.origin+location.pathname+"?data="+btoa(JSON.stringify(shareData));
+
+  const url = location.origin + location.pathname +
+              "?data=" + btoa(JSON.stringify(shareData));
+
   navigator.clipboard.writeText(url);
-  alert("Share link copied!");
+  alert("Results link copied!");
 }
 
-/* ===== LOAD FROM SHARE LINK ===== */
+/* ===== LOAD SHARED RESULT ===== */
 function loadFromURL(){
   const p=new URLSearchParams(location.search);
-  if(p.has("data")){
-    const decoded=JSON.parse(atob(p.get("data")));
-    input.value=decoded.input;
+  if(!p.has("data")) return;
+
+  const decoded=JSON.parse(atob(p.get("data")));
+
+  if(decoded.output){
+    output.value=decoded.output;
+    inputCard.style.display="none"; // clean results view
+  }
+
+  if(decoded.size){
     teamSize.value=decoded.size;
-    if(decoded.mode==="draft" && decoded.captains && decoded.captains.length>0){
-      captains=decoded.captains;
-      prepareCaptainSelect();
-      // mark captains visually
-      Array.from(captainPool.children).forEach(el=>{
-        if(captains.includes(el.textContent)) el.classList.add("selected");
-      });
-    } else {
-      generateRandom();
-    }
   }
 }
 
